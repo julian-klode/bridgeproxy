@@ -13,7 +13,9 @@ type Configuration struct {
 	RemotePort string
 }
 
-func forward(src io.Reader, dst io.Writer) {
+func forward(src net.Conn, dst net.Conn) {
+	defer src.Close()
+	defer dst.Close()
 	for {
 		n, err := io.Copy(dst, src)
 		if n == 0 {
