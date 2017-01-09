@@ -1,3 +1,4 @@
+// Package bridgeproxy relays with a remote TLS host via a HTTP proxy bridge.
 package bridgeproxy
 
 import "fmt"
@@ -6,11 +7,14 @@ import "os"
 import "io"
 import "crypto/tls"
 
+// Configuration configures a server to be served using Serve() below.
+// The bridge must be an HTTP proxy.
+// The remote must be a TLS server that the bridge allows CONNECT-ing to
 type Configuration struct {
-	Local      string
-	Bridge     string
-	RemoteName string
-	RemotePort string
+	Local      string // The local address to listen to (host:port)
+	Bridge     string // The bridge to connect to (host:port)
+	RemoteName string // Host name of the final destination
+	RemotePort string // Port of the final destination
 }
 
 func forward(src net.Conn, dst net.Conn) {
@@ -53,6 +57,9 @@ func handleRequest(browser net.Conn, item Configuration) {
 	go forward(client, browser)
 }
 
+// Serve serves the specified configuration, forwarding any packets between
+// the local socket and the remote one, bridged via an HTTP proxy.
+// It returns nothing.
 func Serve(item Configuration) {
 	// Listen for incoming connections.
 	l, err := net.Listen("tcp", item.Local)
