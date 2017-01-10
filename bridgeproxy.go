@@ -18,23 +18,15 @@ type Configuration struct {
 }
 
 func forward(src net.Conn, dst net.Conn) {
-	defer src.Close()
-	defer dst.Close()
-	for {
-		n, err := io.Copy(dst, src)
-		if n == 0 {
-			break
-		}
-		if err != nil {
-			fmt.Println("Could not forward:", err)
-			break
-		}
-		fmt.Println("Forwarded", n, "bytes from", src, "to", dst)
+	n, err := io.Copy(dst, src)
+	if err != nil {
+		fmt.Println("Could not forward:", err)
 	}
+	src.Close()
+	dst.Close()
 }
 
 func handleRequest(browser net.Conn, item Configuration) {
-	fmt.Println("handleRequest")
 	conn, err := net.Dial("tcp", item.Bridge)
 	if err != nil {
 		fmt.Println("ERROR: Could not connect", err)
