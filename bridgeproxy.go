@@ -18,8 +18,7 @@ type Configuration struct {
 }
 
 func forward(src net.Conn, dst net.Conn) {
-	n, err := io.Copy(dst, src)
-	if err != nil {
+	if _, err := io.Copy(dst, src); err != nil {
 		fmt.Println("Could not forward:", err)
 	}
 	src.Close()
