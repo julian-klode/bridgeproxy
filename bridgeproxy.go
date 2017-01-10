@@ -25,27 +25,27 @@ func forward(src net.Conn, dst net.Conn) {
 	dst.Close()
 }
 
-func handleRequest(browser net.Conn, item Configuration) {
-	conn, err := net.Dial("tcp", item.Bridge)
+func handleRequest(client net.Conn, item Configuration) {
+	bridge, err := net.Dial("tcp", item.Bridge)
 	if err != nil {
 		fmt.Println("ERROR: Could not connect", err)
 		return
 	}
-	fmt.Fprintf(conn, "CONNECT %s:%s HTTP/1.0\r\n\r\n\r\n", item.RemoteName, item.RemotePort)
+	fmt.Fprintf(bridge, "CONNECT %s:%s HTTP/1.0\r\n\r\n\r\n", item.RemoteName, item.RemotePort)
 
 	// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
-	_, err = io.ReadFull(conn, make([]byte, 39))
+	_, err = io.ReadFull(bridge, make([]byte, 39))
 	if err != nil {
 		fmt.Println("Could not read:", err)
 		return
 	}
 
 	// We now have access to the TLS connection.
-	client := tls.Client(conn, &tls.Config{ServerName: item.RemoteName})
+	remote := tls.Client(bridge, &tls.Config{ServerName: item.RemoteName})
 
 	// Forward traffic between the client connected to us and the remote proxy
-	go forward(browser, client)
-	go forward(client, browser)
+	go forward(client, remote)
+	go forward(remote, client)
 }
 
 // Serve serves the specified configuration, forwarding any packets between
