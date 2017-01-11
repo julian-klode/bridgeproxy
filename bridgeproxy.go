@@ -26,18 +26,25 @@ func forward(src net.Conn, dst net.Conn) {
 }
 
 func handleRequest(client net.Conn, item Configuration) {
-	bridge, err := net.Dial("tcp", item.Bridge)
+	var bridgename string = item.Bridge
+	if item.Bridge == "" {
+		bridgename = item.RemoteName + ":" + item.RemotePort
+	}
+
+	bridge, err := net.Dial("tcp", bridgename)
 	if err != nil {
 		fmt.Println("ERROR: Could not connect", err)
 		return
 	}
-	fmt.Fprintf(bridge, "CONNECT %s:%s HTTP/1.0\r\n\r\n\r\n", item.RemoteName, item.RemotePort)
+	if item.Bridge != "" {
+		fmt.Fprintf(bridge, "CONNECT %s:%s HTTP/1.0\r\n\r\n\r\n", item.RemoteName, item.RemotePort)
 
-	// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
-	_, err = io.ReadFull(bridge, make([]byte, 39))
-	if err != nil {
-		fmt.Println("Could not read:", err)
-		return
+		// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
+		_, err = io.ReadFull(bridge, make([]byte, 39))
+		if err != nil {
+			fmt.Println("Could not read:", err)
+			return
+		}
 	}
 
 	// We now have access to the TLS connection.
