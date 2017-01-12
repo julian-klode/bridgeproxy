@@ -1,11 +1,13 @@
 // Package bridgeproxy relays with a remote TLS host via a HTTP proxy bridge.
 package bridgeproxy
 
-import "fmt"
-import "net"
-import "os"
-import "io"
-import "crypto/tls"
+import (
+	"crypto/tls"
+	"fmt"
+	"io"
+	"net"
+	"os"
+)
 
 // Configuration configures a server to be served using Serve() below.
 // The bridge must be an HTTP proxy.
