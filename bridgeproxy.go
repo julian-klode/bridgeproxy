@@ -55,6 +55,29 @@ func writeResponse(w io.Writer, code int, format string, printf ...interface{}) 
 	fmt.Fprintf(w, "%s", msg)
 }
 
+// doHTTPConnect issues an HTTP/1.0 CONNECT request on a connection. It
+// always returns a connection, but may also return an error.
+//
+// The parameter peer describes the peer we want to connect to
+// The parameter activePeer is the latest peer we connected to in this chain
+func doHTTPConnect(connection net.Conn, peer Peer, activePeer Peer) (net.Conn, error) {
+	if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, activePeer.ConnectExtra); err != nil {
+		return connection, fmt.Errorf("failure writing CONNECT to %s: %s", peer.HostName, err.Error())
+	}
+
+	line, err := readLine(io.LimitReader(connection, 1024))
+	if err != nil {
+		return connection, fmt.Errorf("could not CONNECT to %s: %s\r\n", peer.HostName, err.Error())
+	}
+	if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
+		return connection, fmt.Errorf("could not CONNECT to %s: %s", peer.HostName, line)
+	}
+	if _, err = readLine(connection); err != nil {
+		return connection, fmt.Errorf("could not CONNECT to %s: Missing second line", peer.HostName)
+	}
+	return connection, nil
+}
+
 // DialProxy dials a proxy using the given slice of peers. It returns a
 // network connection and error. Even if an error is returned, there may
 // be a network connection that needs to be closed.
@@ -69,19 +92,9 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 				return connection, fmt.Errorf("could not dial proxy: %s\r\n", err)
 			}
 		} else {
-			if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, peers[i-1].ConnectExtra); err != nil {
-				return connection, fmt.Errorf("failure writing CONNECT to %s: %s", peer.HostName, err.Error())
-			}
-
-			line, err := readLine(io.LimitReader(connection, 1024))
+			connection, err = doHTTPConnect(connection, peer, peers[i-1])
 			if err != nil {
-				return connection, fmt.Errorf("could not CONNECT to %s: %s\r\n", peer.HostName, err.Error())
-			}
-			if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
-				return connection, fmt.Errorf("could not CONNECT to %s: %s", peer.HostName, line)
-			}
-			if _, err = readLine(connection); err != nil {
-				return connection, fmt.Errorf("could not CONNECT to %s: Missing second line", peer.HostName)
+				return connection, err
 			}
 		}
 
