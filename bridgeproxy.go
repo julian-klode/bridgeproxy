@@ -47,6 +47,17 @@ func readLine(src io.Reader) (string, error) {
 func handleRequest(client net.Conn, peers []Peer) {
 	var connection net.Conn
 	var err error
+	var connectionClosureHandled bool
+
+	defer func() {
+		if !connectionClosureHandled {
+			client.Close()
+			if connection != nil {
+				fmt.Println("Closing connection from defer")
+				connection.Close()
+			}
+		}
+	}()
 
 	for i, peer := range peers {
 		// The first peer has to be dialed, others happen via connect
@@ -80,6 +91,7 @@ func handleRequest(client net.Conn, peers []Peer) {
 		}
 	}
 
+	connectionClosureHandled = true
 	// Forward traffic between the client connected to us and the remote proxy
 	go forward(client, connection)
 	go forward(connection, client)
