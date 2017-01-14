@@ -76,8 +76,12 @@ func handleRequest(client net.Conn, peers []Peer) {
 				return
 			}
 			if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
-				client.Write([]byte("HTTP/1.0 502 Bad Gateway\r\nConnection: close\r\n\r\n"))
-				client.Write([]byte("Server error: " + line))
+				prefix := "Could not CONNECT to a proxy: "
+				fmt.Fprintf(client, "HTTP/1.0 502 Bad Gateway\r\n")
+				fmt.Fprintf(client, "Content-Type: text/plain\r\n")
+				fmt.Fprintf(client, "Content-Length: %d\r\n", len(prefix)+len(line))
+				fmt.Fprintf(client, "\r\n")
+				fmt.Fprintf(client, prefix+line)
 				return
 			}
 			if line, err = readLine(connection); err != nil {
