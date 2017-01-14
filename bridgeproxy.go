@@ -57,15 +57,15 @@ func writeResponse(w io.Writer, code int, format string, printf ...interface{}) 
 func handleRequest(client net.Conn, peers []Peer) {
 	var connection net.Conn
 	var err error
-	var connectionClosureHandled bool
 
 	defer func() {
-		if !connectionClosureHandled {
+		if client != nil {
 			client.Close()
-			if connection != nil {
-				connection.Close()
-			}
 		}
+		if connection != nil {
+			connection.Close()
+		}
+
 	}()
 
 	for i, peer := range peers {
@@ -102,10 +102,11 @@ func handleRequest(client net.Conn, peers []Peer) {
 		}
 	}
 
-	connectionClosureHandled = true
 	// Forward traffic between the client connected to us and the remote proxy
 	go forward(client, connection)
 	go forward(connection, client)
+
+	connection, client = nil, nil
 }
 
 // Serve serves the specified configuration, forwarding any packets from the
