@@ -1,20 +1,35 @@
 # bridgeproxy - Decrypting bridge to remote HTTPS proxy
 
 Represent a remote HTTPS proxy as a local HTTP proxy, while connecting to
-the remote HTTPS proxy via a bridge HTTP proxy.
+the remote HTTPS proxy via recursive bridge HTTP proxies.
 
 ## Example use
+
+For example, the following connects to second-proxy by first connecting
+to first-proxy. The second proxy is tls encrypted.
 
 ```go
 package main
 
-import "github.com/julian-klode/bridgeproxy"
+import (
+	"crypto/tls"
+	"github.com/julian-klode/bridgeproxy"
+)
 
 func main() {
-	bridgeproxy.Serve(bridgeproxy.Configuration{
-		Local:      "localhost:9090",
-		Bridge:     "local-squid-proxy:3128",
-		RemoteName: "remote-host.example.com",
-		RemotePort: "443"})
+
+	bridgeproxy.Serve(
+		"localhost:9091",
+		[]bridgeproxy.Peer{
+			{
+				HostName: "first-proxy.example.com",
+				Port:     3128,
+			},
+			{
+				TLSConfig:    &tls.Config{InsecureSkipVerify: true},
+				HostName:     "second-proxy.example.com",
+				Port:         443,
+			},
+		})
 }
 ```
