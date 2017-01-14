@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -44,6 +45,15 @@ func readLine(src io.Reader) (string, error) {
 	return string(line[:length]), nil
 }
 
+func writeResponse(w io.Writer, code int, format string, printf ...interface{}) {
+	msg := fmt.Sprintf(format, printf...)
+	fmt.Fprintf(w, "HTTP/1.0 %d %s\r\n", code, http.StatusText(code))
+	fmt.Fprintf(w, "Content-Type: text/plain\r\n")
+	fmt.Fprintf(w, "Content-Length: %d\r\n", len(msg))
+	fmt.Fprintf(w, "\r\n")
+	fmt.Fprintf(w, "%s", msg)
+}
+
 func handleRequest(client net.Conn, peers []Peer) {
 	var connection net.Conn
 	var err error
@@ -64,6 +74,7 @@ func handleRequest(client net.Conn, peers []Peer) {
 			connection, err = net.Dial("tcp", fmt.Sprintf("%s:%d", peer.HostName, peer.Port))
 			if err != nil {
 				fmt.Println("ERROR: Could not connect", err)
+				writeResponse(client, 502, "Could not dial proxy: %s\r\n", err)
 				return
 			}
 		} else {
@@ -72,19 +83,16 @@ func handleRequest(client net.Conn, peers []Peer) {
 			line, err := readLine(io.LimitReader(connection, 1024))
 			if err != nil {
 				fmt.Println("Could not read:", err)
+				writeResponse(client, 502, "Could not CONNECT to %s: %s\r\n", err.Error())
 				return
 			}
 			if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
-				prefix := "Could not CONNECT to a proxy: "
-				fmt.Fprintf(client, "HTTP/1.0 502 Bad Gateway\r\n")
-				fmt.Fprintf(client, "Content-Type: text/plain\r\n")
-				fmt.Fprintf(client, "Content-Length: %d\r\n", len(prefix)+len(line))
-				fmt.Fprintf(client, "\r\n")
-				fmt.Fprintf(client, prefix+line)
+				writeResponse(client, 502, "Could not CONNECT to %s: %s", peer.HostName, line)
 				return
 			}
 			if line, err = readLine(connection); err != nil {
 				fmt.Println("Invalid second response line:", line)
+				writeResponse(client, 502, "Could not CONNECT to %s: Missing second line", peer)
 				return
 			}
 		}
