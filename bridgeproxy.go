@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -23,7 +24,7 @@ type Peer struct {
 
 func forward(src io.ReadCloser, dst io.WriteCloser) {
 	if _, err := io.Copy(dst, src); err != nil {
-		fmt.Println("Could not forward:", err)
+		log.Println("Could not forward:", err)
 	}
 	src.Close()
 	dst.Close()
@@ -73,7 +74,7 @@ func handleRequest(client net.Conn, peers []Peer) {
 		if i == 0 {
 			connection, err = net.Dial("tcp", fmt.Sprintf("%s:%d", peer.HostName, peer.Port))
 			if err != nil {
-				fmt.Println("ERROR: Could not connect", err)
+				log.Println("ERROR: Could not connect", err)
 				writeResponse(client, 502, "Could not dial proxy: %s\r\n", err)
 				return
 			}
@@ -82,7 +83,7 @@ func handleRequest(client net.Conn, peers []Peer) {
 
 			line, err := readLine(io.LimitReader(connection, 1024))
 			if err != nil {
-				fmt.Println("Could not read:", err)
+				log.Println("Could not read:", err)
 				writeResponse(client, 502, "Could not CONNECT to %s: %s\r\n", err.Error())
 				return
 			}
@@ -91,7 +92,7 @@ func handleRequest(client net.Conn, peers []Peer) {
 				return
 			}
 			if line, err = readLine(connection); err != nil {
-				fmt.Println("Invalid second response line:", line)
+				log.Println("Invalid second response line:", line)
 				writeResponse(client, 502, "Could not CONNECT to %s: Missing second line", peer)
 				return
 			}
@@ -116,18 +117,18 @@ func Serve(listenAdress string, peers []Peer) {
 	// Listen for incoming connections.
 	l, err := net.Listen("tcp", listenAdress)
 	if err != nil {
-		fmt.Println("Error listening:", err.Error())
+		log.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on", listenAdress)
-	fmt.Println("- Forwarding requests to", peers[len(peers)-1], "via", peers[0:len(peers)-1])
+	log.Println("Listening on", listenAdress)
+	log.Println("- Forwarding requests to", peers[len(peers)-1], "via", peers[0:len(peers)-1])
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			log.Println("Error accepting: ", err.Error())
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
