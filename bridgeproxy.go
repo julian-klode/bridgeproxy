@@ -93,7 +93,7 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 }
 
 // handleRequest handles a request by calling dialProxy() and then forwarding
-func handleRequest(client net.Conn, peers []Peer) {
+func handleRequest(client io.ReadWriteCloser, peers []Peer) {
 	remote, err := DialProxy(peers)
 	if err != nil {
 		log.Println("Error:", strings.TrimSpace(err.Error()))
