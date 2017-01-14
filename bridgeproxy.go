@@ -18,7 +18,7 @@ type Peer struct {
 	Port      int
 }
 
-func forward(src net.Conn, dst net.Conn) {
+func forward(src io.ReadCloser, dst io.WriteCloser) {
 	if _, err := io.Copy(dst, src); err != nil {
 		fmt.Println("Could not forward:", err)
 	}
