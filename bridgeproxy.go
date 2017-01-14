@@ -53,7 +53,6 @@ func handleRequest(client net.Conn, peers []Peer) {
 		if !connectionClosureHandled {
 			client.Close()
 			if connection != nil {
-				fmt.Println("Closing connection from defer")
 				connection.Close()
 			}
 		}
