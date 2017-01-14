@@ -9,14 +9,13 @@ import (
 	"os"
 )
 
-// Configuration configures a server to be served using Serve() below.
-// The bridge must be an HTTP proxy.
-// The remote must be a TLS server that the bridge allows CONNECT-ing to
-type Configuration struct {
-	Local      string // The local address to listen to (host:port)
-	Bridge     string // The bridge to connect to (host:port)
-	RemoteName string // Host name of the final destination
-	RemotePort string // Port of the final destination
+// Peer is a server we are connecting to. This can either be an
+// intermediate http(s) proxy server or the final server we want
+// to connect to.
+type Peer struct {
+	TLSConfig *tls.Config
+	HostName  string
+	Port      int
 }
 
 func forward(src net.Conn, dst net.Conn) {
@@ -27,50 +26,52 @@ func forward(src net.Conn, dst net.Conn) {
 	dst.Close()
 }
 
-func handleRequest(client net.Conn, item Configuration) {
-	bridgename := item.Bridge
-	if item.Bridge == "" {
-		bridgename = item.RemoteName + ":" + item.RemotePort
-	}
+func handleRequest(client net.Conn, peers []Peer) {
+	var connection net.Conn
+	var err error
 
-	bridge, err := net.Dial("tcp", bridgename)
-	if err != nil {
-		fmt.Println("ERROR: Could not connect", err)
-		return
-	}
-	if item.Bridge != "" {
-		fmt.Fprintf(bridge, "CONNECT %s:%s HTTP/1.0\r\n\r\n\r\n", item.RemoteName, item.RemotePort)
+	for i, peer := range peers {
+		// The first peer has to be dialed, others happen via connect
+		if i == 0 {
+			connection, err = net.Dial("tcp", fmt.Sprintf("%s:%d", peer.HostName, peer.Port))
+			if err != nil {
+				fmt.Println("ERROR: Could not connect", err)
+				return
+			}
+		} else {
+			fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n\r\n\r\n", peer.HostName, peer.Port)
+			// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
+			_, err = io.ReadFull(connection, make([]byte, 39))
+			if err != nil {
+				fmt.Println("Could not read:", err)
+				return
+			}
+		}
 
-		// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
-		_, err = io.ReadFull(bridge, make([]byte, 39))
-		if err != nil {
-			fmt.Println("Could not read:", err)
-			return
+		if peer.TLSConfig != nil {
+			connection = tls.Client(connection, peer.TLSConfig)
 		}
 	}
 
-	// We now have access to the TLS connection.
-	remote := tls.Client(bridge, &tls.Config{ServerName: item.RemoteName})
-
 	// Forward traffic between the client connected to us and the remote proxy
-	go forward(client, remote)
-	go forward(remote, client)
+	go forward(client, connection)
+	go forward(connection, client)
 }
 
-// Serve serves the specified configuration, forwarding any packets between
-// the local socket and the remote one, bridged via an HTTP proxy.
-// It returns nothing.
-func Serve(item Configuration) {
+// Serve serves the specified configuration, forwarding any packets from the
+// local address given in listenAdress to the last peer specified in peers via
+// any peers before specified before it.
+func Serve(listenAdress string, peers []Peer) {
 	// Listen for incoming connections.
-	l, err := net.Listen("tcp", item.Local)
+	l, err := net.Listen("tcp", listenAdress)
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on", item.Local)
-	fmt.Println("- Forwarding requests to", item.RemoteName, "port", item.RemotePort, "via", item.Bridge)
+	fmt.Println("Listening on", listenAdress)
+	fmt.Println("- Forwarding requests to", peers[len(peers)-1], "via", peers[0:len(peers)-1])
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
@@ -79,6 +80,6 @@ func Serve(item Configuration) {
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
-		go handleRequest(conn, item)
+		go handleRequest(conn, peers)
 	}
 }
