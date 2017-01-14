@@ -13,9 +13,11 @@ import (
 // intermediate http(s) proxy server or the final server we want
 // to connect to.
 type Peer struct {
-	TLSConfig *tls.Config
-	HostName  string
-	Port      int
+	TLSConfig       *tls.Config
+	HostName        string
+	ConnectExtra    string
+	ConnectResponse string
+	Port            int
 }
 
 func forward(src io.ReadCloser, dst io.WriteCloser) {
@@ -39,9 +41,13 @@ func handleRequest(client net.Conn, peers []Peer) {
 				return
 			}
 		} else {
-			fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n\r\n\r\n", peer.HostName, peer.Port)
-			// Read the "HTTP/1.0 200 Connection established" and the 2 \r\n
-			_, err = io.ReadFull(connection, make([]byte, 39))
+			fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, peers[i-1].ConnectExtra)
+			// Read the  and the 2 \r\n
+			expectedResponse := "HTTP/1.0 200 Connection established\r\n\r\n"
+			if peers[i-1].ConnectResponse != "" {
+				expectedResponse = peers[i-1].ConnectResponse
+			}
+			_, err = io.ReadFull(connection, make([]byte, len(expectedResponse)))
 			if err != nil {
 				fmt.Println("Could not read:", err)
 				return
