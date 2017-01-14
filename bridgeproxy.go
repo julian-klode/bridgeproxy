@@ -13,11 +13,11 @@ import (
 // intermediate http(s) proxy server or the final server we want
 // to connect to.
 type Peer struct {
-	TLSConfig       *tls.Config
-	HostName        string
-	ConnectExtra    string
-	ConnectResponse string
-	Port            int
+	TLSConfig       *tls.Config // nil if unencrypted, valid config otherwise
+	HostName        string      // The hostname to connect to
+	Port            int         // The port to connect to on the hostname
+	ConnectExtra    string      // Extra headers to send after the CONNECT line
+	ConnectResponse string      // Response to expect from the server
 }
 
 func forward(src io.ReadCloser, dst io.WriteCloser) {
