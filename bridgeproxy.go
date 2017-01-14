@@ -86,7 +86,11 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 		}
 
 		if peer.TLSConfig != nil {
-			connection = tls.Client(connection, peer.TLSConfig)
+			tlsConnection := tls.Client(connection, peer.TLSConfig)
+			if err := tlsConnection.Handshake(); err != nil {
+				return connection, fmt.Errorf("handshake with %s failed: %s", peer.HostName, err)
+			}
+			connection = tlsConnection
 		}
 	}
 	return connection, nil
