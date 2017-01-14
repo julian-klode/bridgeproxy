@@ -55,46 +55,31 @@ func writeResponse(w io.Writer, code int, format string, printf ...interface{}) 
 	fmt.Fprintf(w, "%s", msg)
 }
 
-func handleRequest(client net.Conn, peers []Peer) {
+// DialProxy dials a proxy using the given slice of peers. It returns a
+// network connection and error. Even if an error is returned, there may
+// be a network connection that needs to be closed.
+func DialProxy(peers []Peer) (net.Conn, error) {
 	var connection net.Conn
 	var err error
-
-	defer func() {
-		if client != nil {
-			client.Close()
-		}
-		if connection != nil {
-			connection.Close()
-		}
-
-	}()
-
 	for i, peer := range peers {
 		// The first peer has to be dialed, others happen via connect
 		if i == 0 {
 			connection, err = net.Dial("tcp", fmt.Sprintf("%s:%d", peer.HostName, peer.Port))
 			if err != nil {
-				log.Println("ERROR: Could not connect", err)
-				writeResponse(client, 502, "Could not dial proxy: %s\r\n", err)
-				return
+				return connection, fmt.Errorf("could not dial proxy: %s\r\n", err)
 			}
 		} else {
 			fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, peers[i-1].ConnectExtra)
 
 			line, err := readLine(io.LimitReader(connection, 1024))
 			if err != nil {
-				log.Println("Could not read:", err)
-				writeResponse(client, 502, "Could not CONNECT to %s: %s\r\n", err.Error())
-				return
+				return connection, fmt.Errorf("could not CONNECT to %s: %s\r\n", peer.HostName, err.Error())
 			}
 			if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
-				writeResponse(client, 502, "Could not CONNECT to %s: %s", peer.HostName, line)
-				return
+				return connection, fmt.Errorf("could not CONNECT to %s: %s", peer.HostName, line)
 			}
-			if line, err = readLine(connection); err != nil {
-				log.Println("Invalid second response line:", line)
-				writeResponse(client, 502, "Could not CONNECT to %s: Missing second line", peer)
-				return
+			if _, err = readLine(connection); err != nil {
+				return connection, fmt.Errorf("could not CONNECT to %s: Missing second line", peer.HostName)
 			}
 		}
 
@@ -102,12 +87,24 @@ func handleRequest(client net.Conn, peers []Peer) {
 			connection = tls.Client(connection, peer.TLSConfig)
 		}
 	}
+	return connection, nil
+}
 
-	// Forward traffic between the client connected to us and the remote proxy
-	go forward(client, connection)
-	go forward(connection, client)
+// handleRequest handles a request by calling dialProxy() and then forwarding
+func handleRequest(client net.Conn, peers []Peer) {
+	remote, err := DialProxy(peers)
+	if err != nil {
+		log.Println("Error:", strings.TrimSpace(err.Error()))
+		writeResponse(client, 502, "Error: %s", err.Error())
+		if remote != nil {
+			remote.Close()
+		}
+		client.Close()
+		return
+	}
 
-	connection, client = nil, nil
+	go forward(client, remote)
+	go forward(remote, client)
 }
 
 // Serve serves the specified configuration, forwarding any packets from the
