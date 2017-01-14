@@ -28,7 +28,7 @@ func forward(src net.Conn, dst net.Conn) {
 }
 
 func handleRequest(client net.Conn, item Configuration) {
-	var bridgename string = item.Bridge
+	bridgename := item.Bridge
 	if item.Bridge == "" {
 		bridgename = item.RemoteName + ":" + item.RemotePort
 	}
