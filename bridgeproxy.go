@@ -69,7 +69,9 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 				return connection, fmt.Errorf("could not dial proxy: %s\r\n", err)
 			}
 		} else {
-			fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, peers[i-1].ConnectExtra)
+			if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, peers[i-1].ConnectExtra); err != nil {
+				return connection, fmt.Errorf("failure writing CONNECT to %s: %s", peer.HostName, err.Error())
+			}
 
 			line, err := readLine(io.LimitReader(connection, 1024))
 			if err != nil {
