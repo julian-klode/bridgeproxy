@@ -88,14 +88,11 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 		// The first peer has to be dialed, others happen via connect
 		if i == 0 {
 			connection, err = net.Dial("tcp", fmt.Sprintf("%s:%d", peer.HostName, peer.Port))
-			if err != nil {
-				return connection, fmt.Errorf("could not dial proxy: %s\r\n", err)
-			}
 		} else {
 			connection, err = doHTTPConnect(connection, peer, peers[i-1])
-			if err != nil {
-				return connection, err
-			}
+		}
+		if err != nil {
+			return connection, err
 		}
 
 		if peer.TLSConfig != nil {
