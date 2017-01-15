@@ -1,4 +1,20 @@
-// Package bridgeproxy relays with a remote TLS host via a HTTP proxy bridge.
+/*
+Package bridgeproxy provides a framework for writing proxies that connect
+through one or more upstream proxies (called Peer below).
+
+There are two main entry functions that can be used:
+
+1. Serve() provides access to the last peer under the given address. This can
+be used to implement a TLS-decrypting proxy server: Just specify a HTTPS
+proxy as the last peer, and it will be available as an HTTP proxy on the
+chosen address.
+
+2. ListenTLS() provides a way to HIJACK TLS requests: A client connecting to
+the specified address will be connected via the peers to the address it
+indicates via SNI (Server Name Indication) in the TLS handshake
+
+TODO: Implement a transparent HTTP proxy.
+*/
 package bridgeproxy
 
 import (
