@@ -32,10 +32,10 @@ import (
 // intermediate http(s) proxy server or the final server we want
 // to connect to.
 type Peer struct {
-	TLSConfig    *tls.Config // nil if unencrypted, valid config otherwise
-	HostName     string      // The hostname to connect to
-	Port         int         // The port to connect to on the hostname
-	ConnectExtra string      // Extra headers to send after the CONNECT line
+	TLSConfig    *tls.Config       // nil if unencrypted, valid config otherwise
+	HostName     string            // The hostname to connect to
+	Port         int               // The port to connect to on the hostname
+	ConnectExtra map[string]string // Extra headers to send after the CONNECT line
 }
 
 // copyAndClose copies bytes from src to dst and closes both afterwards
@@ -80,8 +80,19 @@ func writeHTTPResponse(w io.Writer, code int, format string, printf ...interface
 // The parameter peer describes the peer we want to connect to
 // The parameter activePeer is the latest peer we connected to in this chain
 func doHTTPConnect(connection net.Conn, peer Peer, activePeer Peer) (net.Conn, error) {
-	if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n%s\r\n\r\n", peer.HostName, peer.Port, activePeer.ConnectExtra); err != nil {
+
+	if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n", peer.HostName, peer.Port); err != nil {
 		return connection, fmt.Errorf("failure writing CONNECT to %s: %s", peer.HostName, err.Error())
+	}
+
+	for k, v := range activePeer.ConnectExtra {
+		if _, err := fmt.Fprintf(connection, "%s: %s\r\n", k, v); err != nil {
+			return connection, fmt.Errorf("failure writing CONNECT header to %s: %s", peer.HostName, err.Error())
+		}
+	}
+
+	if _, err := fmt.Fprintf(connection, "\r\n"); err != nil {
+		return connection, fmt.Errorf("failure writing CONNECT end of headers to %s: %s", peer.HostName, err.Error())
 	}
 
 	line, err := readLine(io.LimitReader(connection, 1024))
