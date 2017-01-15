@@ -33,8 +33,8 @@ func hijackTLSRequest(client net.Conn, peers []Peer) {
 		return
 	}
 
-	go forward(tlsClientConn, proxy)
-	go forward(proxy, tlsClientConn)
+	go copyAndClose(tlsClientConn, proxy)
+	go copyAndClose(proxy, tlsClientConn)
 }
 
 // ListenTLS listens on the given address for TLS connections with

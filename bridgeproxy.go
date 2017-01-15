@@ -38,7 +38,8 @@ type Peer struct {
 	ConnectExtra string      // Extra headers to send after the CONNECT line
 }
 
-func forward(src io.ReadCloser, dst io.WriteCloser) {
+// copyAndClose copies bytes from src to dst and closes both afterwards
+func copyAndClose(dst io.WriteCloser, src io.ReadCloser) {
 	if _, err := io.Copy(dst, src); err != nil {
 		log.Println("Could not forward:", err)
 	}
@@ -135,8 +136,8 @@ func handleRequest(client io.ReadWriteCloser, peers []Peer) {
 		return
 	}
 
-	go forward(client, remote)
-	go forward(remote, client)
+	go copyAndClose(client, remote)
+	go copyAndClose(remote, client)
 }
 
 // Serve serves the specified configuration, forwarding any packets from the
