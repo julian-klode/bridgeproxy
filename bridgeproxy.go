@@ -63,7 +63,9 @@ func readLine(src io.Reader) (string, error) {
 	return string(line[:length]), nil
 }
 
-func writeResponse(w io.Writer, code int, format string, printf ...interface{}) {
+// writeHTTPResponse writes a response to w with the given code and body,
+// the latter being defined by a printf() format strings and arguments.
+func writeHTTPResponse(w io.Writer, code int, format string, printf ...interface{}) {
 	msg := fmt.Sprintf(format, printf...)
 	fmt.Fprintf(w, "HTTP/1.0 %d %s\r\n", code, http.StatusText(code))
 	fmt.Fprintf(w, "Content-Type: text/plain\r\n")
@@ -128,7 +130,7 @@ func handleRequest(client io.ReadWriteCloser, peers []Peer) {
 	remote, err := DialProxy(peers)
 	if err != nil {
 		log.Println("Error:", strings.TrimSpace(err.Error()))
-		writeResponse(client, 502, "Error: %s", err.Error())
+		writeHTTPResponse(client, 502, "Error: %s", err.Error())
 		if remote != nil {
 			remote.Close()
 		}
