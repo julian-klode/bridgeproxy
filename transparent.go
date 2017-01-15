@@ -12,6 +12,11 @@ import (
 // client to port 443.
 func hijackTLSRequest(client net.Conn, peers []Peer) {
 	tlsClientConn, err := vhost.TLS(client)
+	defer func() {
+		if client != nil {
+			client.Close()
+		}
+	}()
 	if err != nil {
 		log.Println("Error accepting new connection:", err)
 		return
@@ -33,6 +38,7 @@ func hijackTLSRequest(client net.Conn, peers []Peer) {
 		return
 	}
 
+	client = nil
 	go copyAndClose(tlsClientConn, proxy)
 	go copyAndClose(proxy, tlsClientConn)
 }
