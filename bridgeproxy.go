@@ -2,7 +2,7 @@
 Package bridgeproxy provides a framework for writing proxies that connect
 through one or more upstream proxies (called Peer below).
 
-There are two main entry functions that can be used:
+There are three main entry functions that can be used:
 
 1. Serve() provides access to the last peer under the given address. This can
 be used to implement a TLS-decrypting proxy server: Just specify a HTTPS
@@ -13,7 +13,9 @@ chosen address.
 the specified address will be connected via the peers to the address it
 indicates via SNI (Server Name Indication) in the TLS handshake
 
-TODO: Implement a transparent HTTP proxy.
+3. HTTPProxyHandler() constructs a http.Handler that can be used with
+http.ListenAndServe() to create an HTTP proxy that accepts CONNECT, GET,
+HEAD, and possibly other types of requests.
 */
 package bridgeproxy
 
