@@ -20,12 +20,14 @@ HEAD, and possibly other types of requests.
 package bridgeproxy
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"strings"
+	"net/http"
+	"net/url"
 )
 
 // Peer is a server we are connecting to. This can either be an
@@ -47,54 +49,51 @@ func copyAndClose(dst io.WriteCloser, src io.ReadCloser) {
 	dst.Close()
 }
 
-// readLine reads a network line one byte at a time. We need to read unbuffered
-// as we might later turn the connection after a 200 response for a CONNECT
-// into a tls connection, for which we need a net.Conn.
-func readLine(src io.Reader) (string, error) {
-	line := make([]byte, 0, 64)
-	length := 0
-	for length < 2 || line[length-2] != '\r' || line[length-1] != '\n' {
-		line = append(line, 0)
-		if _, err := io.ReadFull(src, line[length:]); err != nil {
-			return "", err
-		}
-		length++
-	}
-	return string(line[:length]), nil
+// httpConnectResponseConn wraps a connection with a reader so we can read
+// the response code first and then read the rest from the reader.
+type httpConnectResponseConn struct {
+	net.Conn
+	io.ReadCloser
 }
 
-// doHTTPConnect issues an HTTP/1.0 CONNECT request on a connection. It
+// Read should read from the reader, not the connection
+func (conn *httpConnectResponseConn) Read(b []byte) (int, error) {
+	return conn.ReadCloser.Read(b)
+}
+
+// Close should close the body not the connection
+func (conn *httpConnectResponseConn) Close() error {
+	return conn.ReadCloser.Close()
+}
+
+// doHTTPConnect issues an HTTP CONNECT request on a connection. It
 // always returns a connection, but may also return an error.
 //
 // The parameter peer describes the peer we want to connect to
 // The parameter activePeer is the latest peer we connected to in this chain
 func doHTTPConnect(connection net.Conn, peer Peer, activePeer Peer) (net.Conn, error) {
-
-	if _, err := fmt.Fprintf(connection, "CONNECT %s:%d HTTP/1.0\r\n", peer.HostName, peer.Port); err != nil {
-		return connection, fmt.Errorf("failure writing CONNECT to %s: %s", peer.HostName, err.Error())
+	req := http.Request{
+		Method: "CONNECT",
+		URL:    &url.URL{Path: fmt.Sprintf("%s:%d", peer.HostName, peer.Port)},
+		Header: make(http.Header),
 	}
-
 	for k, v := range activePeer.ConnectExtra {
-		if _, err := fmt.Fprintf(connection, "%s: %s\r\n", k, v); err != nil {
-			return connection, fmt.Errorf("failure writing CONNECT header to %s: %s", peer.HostName, err.Error())
-		}
+		req.Header.Add(k, v)
 	}
 
-	if _, err := fmt.Fprintf(connection, "\r\n"); err != nil {
-		return connection, fmt.Errorf("failure writing CONNECT end of headers to %s: %s", peer.HostName, err.Error())
+	if err := req.Write(connection); err != nil {
+		return connection, fmt.Errorf("connecting to %s: %s", peer.HostName, err.Error())
 	}
 
-	line, err := readLine(io.LimitReader(connection, 1024))
-	if err != nil {
-		return connection, fmt.Errorf("could not CONNECT to %s: %s\r\n", peer.HostName, err.Error())
+	res, err := http.ReadResponse(bufio.NewReader(connection), &req)
+	switch {
+	case err != nil:
+		return connection, fmt.Errorf("reading response: connecting to %s: %s", peer.HostName, err.Error())
+	case res.StatusCode != 200:
+		return connection, fmt.Errorf("invalid status code: connecting to %s: %d", peer.HostName, res.StatusCode)
 	}
-	if !strings.HasPrefix(line, "HTTP/1.0 200") && !strings.HasPrefix(line, "HTTP/1.1 200") {
-		return connection, fmt.Errorf("could not CONNECT to %s: %s", peer.HostName, line)
-	}
-	if _, err = readLine(connection); err != nil {
-		return connection, fmt.Errorf("could not CONNECT to %s: Missing second line", peer.HostName)
-	}
-	return connection, nil
+
+	return &httpConnectResponseConn{connection, res.Body}, nil
 }
 
 // DialProxy dials a proxy using the given slice of peers. It returns a
