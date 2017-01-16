@@ -19,8 +19,10 @@ type httpProxyClient struct {
 // ServeHTTP serves proxy requests
 func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// authenticate
-	for k, v := range client.peers[len(client.peers)-1].ConnectExtra {
-		r.Header.Add(k, v)
+	for k, vs := range client.peers[len(client.peers)-1].ConnectExtra {
+		for _, v := range vs {
+			r.Header.Add(k, v)
+		}
 	}
 	// net/http.Client does not handle the CONNECT stuff that well below, so
 	// let us go a more direct route here - this could be used for the other

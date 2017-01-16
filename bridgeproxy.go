@@ -34,10 +34,10 @@ import (
 // intermediate http(s) proxy server or the final server we want
 // to connect to.
 type Peer struct {
-	TLSConfig    *tls.Config       // nil if unencrypted, valid config otherwise
-	HostName     string            // The hostname to connect to
-	Port         int               // The port to connect to on the hostname
-	ConnectExtra map[string]string // Extra headers to send after the CONNECT line
+	TLSConfig    *tls.Config         // nil if unencrypted, valid config otherwise
+	HostName     string              // The hostname to connect to
+	Port         int                 // The port to connect to on the hostname
+	ConnectExtra map[string][]string // Extra headers to send after the CONNECT line
 }
 
 // copyAndClose copies bytes from src to dst and closes both afterwards
@@ -75,10 +75,7 @@ func doHTTPConnect(connection net.Conn, peer Peer, activePeer Peer) (net.Conn, e
 	req := http.Request{
 		Method: "CONNECT",
 		URL:    &url.URL{Path: fmt.Sprintf("%s:%d", peer.HostName, peer.Port)},
-		Header: make(http.Header),
-	}
-	for k, v := range activePeer.ConnectExtra {
-		req.Header.Add(k, v)
+		Header: http.Header(activePeer.ConnectExtra),
 	}
 
 	if err := req.Write(connection); err != nil {
