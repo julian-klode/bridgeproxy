@@ -3,6 +3,9 @@
 Represent a remote HTTPS proxy as a local HTTP proxy, while connecting to
 the remote HTTPS proxy via recursive bridge HTTP proxies.
 
+## Documentation
+See http://godoc.org/github.com/julian-klode/bridgeproxy for documentation.
+
 ## Example use
 
 For example, the following connects to second-proxy by first connecting
