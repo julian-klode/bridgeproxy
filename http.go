@@ -16,6 +16,29 @@ type httpProxyClient struct {
 	peers []Peer
 }
 
+// serveHTTPConnect serves proxy requests for the CONNECT method. It does not
+// print errors, but rather returns them for your proxy handler to handle.
+func (client *httpProxyClient) serveHTTPConnect(w http.ResponseWriter, r *http.Request) error {
+	log.Println("Dialing for CONNECT to", r.URL)
+	remote, err := DialProxy(client.peers)
+	if err != nil {
+		return err
+	}
+
+	if err = r.WriteProxy(remote); err != nil {
+		return err
+	}
+
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		return err
+	}
+
+	go copyAndClose(conn, remote)
+	copyAndClose(remote, conn)
+	return nil
+}
+
 // ServeHTTP serves proxy requests
 func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// authenticate
@@ -29,32 +52,11 @@ func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// methods as well, but that would prevent reusing connections to the
 	// proxy.
 	if r.Method == "CONNECT" {
-		log.Println("Dialing for CONNECT to", r.URL)
-		remote, err := DialProxy(client.peers)
-		if err != nil {
+		if err := client.serveHTTPConnect(w, r); err != nil {
 			log.Println(err)
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
-			return
 		}
-
-		if err = r.WriteProxy(remote); err != nil {
-			log.Println(err)
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
-			return
-		}
-
-		conn, _, err := w.(http.Hijacker).Hijack()
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
-			return
-		}
-
-		go copyAndClose(conn, remote)
-		copyAndClose(remote, conn)
 		return
 	}
 
