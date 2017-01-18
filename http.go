@@ -1,6 +1,7 @@
 package bridgeproxy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -91,6 +92,12 @@ func (proxy *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 // not only HTTP proxy requests, but also normal HTTP/1.1 requests with a
 // Host header - thus enabling the use as a transparent proxy.
 func HTTPProxyHandler(peers []Peer) http.Handler {
+	var buffer bytes.Buffer
+	for _, peer := range peers {
+		fmt.Fprintf(&buffer, " → %s:%d", peer.HostName, peer.Port)
+	}
+	log.Printf("Forwarding HTTP: this%s\n", buffer.String())
+
 	host := fmt.Sprintf("%s:%d", peers[len(peers)-1].HostName, peers[len(peers)-1].Port)
 	transport := http.Transport{
 		MaxIdleConns:        64,

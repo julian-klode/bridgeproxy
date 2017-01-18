@@ -1,6 +1,8 @@
 package bridgeproxy
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 	"net"
 
@@ -51,7 +53,11 @@ func ListenTLS(laddr string, peers []Peer) {
 	if err != nil {
 		log.Fatalf("Error listening for TLS connections - %v", err)
 	}
-	log.Println("Listening on", laddr, "for incoming TLS connections")
+	var buffer bytes.Buffer
+	for _, peer := range peers {
+		fmt.Fprintf(&buffer, " → %s:%d", peer.HostName, peer.Port)
+	}
+	log.Printf("Forwarding TLS: %s%s\n", laddr, buffer.String())
 	for {
 		c, err := ln.Accept()
 		if err != nil {

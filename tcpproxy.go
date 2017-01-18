@@ -3,6 +3,7 @@
 package bridgeproxy
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -52,8 +53,11 @@ func Serve(listenAdress string, peers []Peer) {
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	log.Println("Listening on", listenAdress)
-	log.Println("- Forwarding requests to", peers[len(peers)-1], "via", peers[0:len(peers)-1])
+	var buffer bytes.Buffer
+	for _, peer := range peers {
+		fmt.Fprintf(&buffer, " → %s:%d", peer.HostName, peer.Port)
+	}
+	log.Printf("Forwarding TCP: %s%s\n", listenAdress, buffer.String())
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
