@@ -10,17 +10,17 @@ import (
 	"time"
 )
 
-// httpProxyClient implements a http.Handler for proxying requests
-type httpProxyClient struct {
-	http.Client
-	peers []Peer
+// httpProxyHandler implements a http.Handler for proxying requests
+type httpProxyHandler struct {
+	client http.Client
+	peers  []Peer
 }
 
 // serveHTTPConnect serves proxy requests for the CONNECT method. It does not
 // print errors, but rather returns them for your proxy handler to handle.
-func (client *httpProxyClient) serveHTTPConnect(w http.ResponseWriter, r *http.Request) error {
+func (proxy *httpProxyHandler) serveHTTPConnect(w http.ResponseWriter, r *http.Request) error {
 	log.Println("Dialing for CONNECT to", r.URL)
-	remote, err := DialProxy(client.peers)
+	remote, err := DialProxy(proxy.peers)
 	if err != nil {
 		return err
 	}
@@ -40,9 +40,9 @@ func (client *httpProxyClient) serveHTTPConnect(w http.ResponseWriter, r *http.R
 }
 
 // ServeHTTP serves proxy requests
-func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (proxy *httpProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// authenticate
-	for k, vs := range client.peers[len(client.peers)-1].ConnectExtra {
+	for k, vs := range proxy.peers[len(proxy.peers)-1].ConnectExtra {
 		for _, v := range vs {
 			r.Header.Add(k, v)
 		}
@@ -52,7 +52,7 @@ func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// methods as well, but that would prevent reusing connections to the
 	// proxy.
 	if r.Method == "CONNECT" {
-		if err := client.serveHTTPConnect(w, r); err != nil {
+		if err := proxy.serveHTTPConnect(w, r); err != nil {
 			log.Println(err)
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
@@ -69,7 +69,7 @@ func (client *httpProxyClient) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		r.URL.Host = r.Host
 	}
 	r.RequestURI = ""
-	res, err := client.Do(r)
+	res, err := proxy.client.Do(r)
 	if err != nil {
 		log.Println("Could not do", r, "-", err)
 		w.WriteHeader(500)
@@ -123,5 +123,5 @@ func HTTPProxyHandler(peers []Peer) http.Handler {
 		},
 	}
 
-	return &httpProxyClient{client, peers}
+	return &httpProxyHandler{client, peers}
 }
