@@ -3,6 +3,8 @@
 Represent a remote HTTPS proxy as a local HTTP proxy, while connecting to
 the remote HTTPS proxy via recursive bridge HTTP proxies.
 
+[![GoDoc](https://godoc.org/github.com/julian-klode/bridgeproxy?status.svg)](https://godoc.org/github.com/julian-klode/bridgeproxy) [![Go Report Card](https://goreportcard.com/badge/github.com/julian-klode/bridgeproxy)](https://goreportcard.com/report/github.com/julian-klode/bridgeproxy)
+
 ## Documentation
 See http://godoc.org/github.com/julian-klode/bridgeproxy for documentation.
 
