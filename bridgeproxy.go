@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // Peer is a server we are connecting to. This can either be an
@@ -93,10 +94,10 @@ func doHTTPConnect(connection net.Conn, peer Peer, activePeer Peer) (net.Conn, e
 	return &httpConnectResponseConn{connection, res.Body}, nil
 }
 
-// DialProxy dials a proxy using the given slice of peers. It returns a
+// DialProxyInternal dials a proxy using the given slice of peers. It returns a
 // network connection and error. Even if an error is returned, there may
 // be a network connection that needs to be closed.
-func DialProxy(peers []Peer) (net.Conn, error) {
+func DialProxyInternal(peers []Peer) (net.Conn, error) {
 	var connection net.Conn
 	var err error
 	for i, peer := range peers {
@@ -119,4 +120,50 @@ func DialProxy(peers []Peer) (net.Conn, error) {
 		}
 	}
 	return connection, nil
+}
+
+type connResult struct {
+	c net.Conn
+	e error
+}
+
+var tcpConnections = make(map[string]chan connResult)
+
+// DialProxy is a buffered version of DialProxyInternal(). It keeps a channel for a given list of peers
+// and generates new connections in a background goroutine, thus removing the overhead for establishing
+// new connections for all except the first one (and occassional timed out ones).
+func DialProxy(peers []Peer) (net.Conn, error) {
+	a := time.Now()
+	peersAsString := ""
+	for _, peer := range peers {
+		peersAsString += fmt.Sprintf("%s:%d/", peer.HostName, peer.Port)
+	}
+	chn, ok := tcpConnections[peersAsString]
+	if !ok {
+		chn = make(chan connResult)
+		tcpConnections[peersAsString] = chn
+
+		go func() {
+			for {
+				a := time.Now()
+				conn, err := DialProxyInternal(peers)
+				log.Printf("Established %s in the background in %s", peersAsString, time.Now().Sub(a))
+				chn <- connResult{conn, err}
+			}
+		}()
+	}
+
+	for {
+		res := <-chn
+		// Discard closed connections
+		if _, err := res.c.Read(make([]byte, 0, 0)); err != nil {
+			log.Printf("Discarding: %s", err)
+			continue
+		}
+		if res.e != nil {
+			return nil, res.e
+		}
+		log.Printf("Fully established %s in %s", peersAsString, time.Now().Sub(a))
+		return res.c, nil
+	}
 }
